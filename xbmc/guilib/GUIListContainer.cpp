@@ -23,8 +23,6 @@
 #include "GUIListItem.h"
 #include "GUIInfoManager.h"
 
-#include "settings/GUISettings.h"
-
 CGUIListContainer::CGUIListContainer(int parentID, int controlID, float posX, float posY, float width, float height, ORIENTATION orientation, int scrollTime, int preloadItems)
     : CGUIBaseContainer(parentID, controlID, posX, posY, width, height, orientation, scrollTime, preloadItems)
 {
@@ -69,51 +67,43 @@ bool CGUIListContainer::OnAction(const CAction &action)
     // smooth scrolling (for analog controls)
   case ACTION_SCROLL_UP:
     {
-		m_analogScrollCount += action.GetAmount() * action.GetAmount();
-		bool handled = false;
-		if (!g_guiSettings.GetBool("mygames.fastscrolling"))
-		{
-			while (m_analogScrollCount > 8.5)
-			{
-				handled = true;
-				m_analogScrollCount -= 8.5f;
-				Scroll(-1);
-			}
-		}
-		  else
-		{
-			while (m_analogScrollCount > 0.8)
-			{
-				handled = true;
-				m_analogScrollCount -= 0.8f;
-				Scroll(-1);
-			}
-		}
-	}
+      m_analogScrollCount += action.GetAmount() * action.GetAmount();
+      bool handled = false;
+      while (m_analogScrollCount > 0.4)
+      {
+        handled = true;
+        m_analogScrollCount -= 0.4f;
+        if (m_offset > 0 && m_cursor <= m_itemsPerPage / 2)
+        {
+          Scroll(-1);
+        }
+        else if (m_cursor > 0)
+        {
+          SetCursor(m_cursor - 1);
+        }
+      }
+      return handled;
+    }
     break;
   case ACTION_SCROLL_DOWN:
     {
-		m_analogScrollCount += action.GetAmount() * action.GetAmount();
-		bool handled = false;
-		if (!g_guiSettings.GetBool("mygames.fastscrolling"))
-		{
-			while (m_analogScrollCount > 8.5)
-			{
-				handled = true;
-				m_analogScrollCount -= 8.5f;
-				Scroll(1);
-			}
-		}
-		  else
-		{
-			while (m_analogScrollCount > 0.8)
-			{
-				handled = true;
-				m_analogScrollCount -= 0.8f;
-				Scroll(1);
-			}
-		}
-	}
+      m_analogScrollCount += action.GetAmount() * action.GetAmount();
+      bool handled = false;
+      while (m_analogScrollCount > 0.4)
+      {
+        handled = true;
+        m_analogScrollCount -= 0.4f;
+        if (m_offset + m_itemsPerPage < (int)m_items.size() && m_cursor >= m_itemsPerPage / 2)
+        {
+          Scroll(1);
+        }
+        else if (m_cursor < m_itemsPerPage - 1 && m_offset + m_cursor < (int)m_items.size() - 1)
+        {
+          SetCursor(m_cursor + 1);
+        }
+      }
+      return handled;
+    }
     break;
   }
   return CGUIBaseContainer::OnAction(action);

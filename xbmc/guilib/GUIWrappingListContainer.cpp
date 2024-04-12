@@ -22,8 +22,6 @@
 #include "GUIWrappingListContainer.h"
 #include "FileItem.h"
 
-#include "settings/GUISettings.h"
-
 CGUIWrappingListContainer::CGUIWrappingListContainer(int parentID, int controlID, float posX, float posY, float width, float height, ORIENTATION orientation, int scrollTime, int preloadItems, int fixedPosition)
     : CGUIBaseContainer(parentID, controlID, posX, posY, width, height, orientation, scrollTime, preloadItems)
 {
@@ -59,51 +57,29 @@ bool CGUIWrappingListContainer::OnAction(const CAction &action)
     // smooth scrolling (for analog controls)
   case ACTION_SCROLL_UP:
     {
-		m_analogScrollCount += action.GetAmount() * action.GetAmount();
-		bool handled = false;
-		if (!g_guiSettings.GetBool("mygames.fastscrolling"))
-		{
-			while (m_analogScrollCount > 8.5)
-			{
-				handled = true;
-				m_analogScrollCount -= 8.5f;
-				Scroll(-1);
-			}
-		}
-		  else
-		{
-			while (m_analogScrollCount > 0.8)
-			{
-				handled = true;
-				m_analogScrollCount -= 0.8f;
-				Scroll(-1);
-			}
-		}
-	}
+      m_analogScrollCount += action.GetAmount() * action.GetAmount();
+      bool handled = false;
+      while (m_analogScrollCount > 0.4)
+      {
+        handled = true;
+        m_analogScrollCount -= 0.4f;
+        Scroll(-1);
+      }
+      return handled;
+    }
     break;
   case ACTION_SCROLL_DOWN:
     {
-		m_analogScrollCount += action.GetAmount() * action.GetAmount();
-		bool handled = false;
-		if (!g_guiSettings.GetBool("mygames.fastscrolling"))
-		{
-			while (m_analogScrollCount > 8.5)
-			{
-				handled = true;
-				m_analogScrollCount -= 8.5f;
-				Scroll(1);
-			}
-		}
-		  else
-		{
-			while (m_analogScrollCount > 0.8)
-			{
-				handled = true;
-				m_analogScrollCount -= 0.8f;
-				Scroll(1);
-			}
-		}
-	}
+      m_analogScrollCount += action.GetAmount() * action.GetAmount();
+      bool handled = false;
+      while (m_analogScrollCount > 0.4)
+      {
+        handled = true;
+        m_analogScrollCount -= 0.4f;
+        Scroll(1);
+      }
+      return handled;
+    }
     break;
   }
   return CGUIBaseContainer::OnAction(action);

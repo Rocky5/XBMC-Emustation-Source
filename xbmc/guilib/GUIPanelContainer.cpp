@@ -23,8 +23,6 @@
 #include "GUIListItem.h"
 #include "GUIInfoManager.h"
 
-#include "settings/GUISettings.h"
-
 using namespace std;
 
 CGUIPanelContainer::CGUIPanelContainer(int parentID, int controlID, float posX, float posY, float width, float height, ORIENTATION orientation, int scrollTime, int preloadItems)
@@ -393,14 +391,7 @@ unsigned int CGUIPanelContainer::GetRows() const
 
 float CGUIPanelContainer::AnalogScrollSpeed() const
 {
-		if (!g_guiSettings.GetBool("mygames.fastscrolling"))
-		{
-			return 18.5f / m_itemsPerPage;
-		}
-		else
-		{
-			return 10.0f / m_itemsPerPage;
-		}
+  return 10.0f / m_itemsPerPage;
 }
 
 int CGUIPanelContainer::CorrectOffset(int offset, int cursor) const
