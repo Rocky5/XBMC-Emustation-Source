@@ -176,7 +176,6 @@ bool CSplash::Start()
 
 void CSplash::Stop()
 {
-	CBuiltins::Execute("RunScript(special://emustation_scripts/home_themer.py,1)");
 	StopThread();
 }
 

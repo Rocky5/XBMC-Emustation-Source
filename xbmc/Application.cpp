@@ -1354,6 +1354,8 @@ HRESULT CApplication::Initialize()
 	g_windowManager.Add(new CGUIWindowWeather);            // window id = 2600 WEATHER
 	g_windowManager.Add(new CGUIWindowStartup);            // startup window (id 2999)
 
+	CBuiltins::Execute("RunScript(special://emustation_scripts/home_themer.py,1)");
+
 	if (CFile::Exists("Special://root/updater/default.xbe"))
 	{
 		if (CGUIDialogYesNo::ShowAndGetInput(g_localizeStrings.Get(33049), "Updater found.", "Would you like to continue with the update?", "", "No", "Yes"))
