@@ -1439,7 +1439,12 @@ HRESULT CApplication::Initialize()
 
 	if (!g_advancedSettings.m_splashImage && g_advancedSettings.m_enableintro && !CFile::Exists("Special://root/system/nointroplay"))
 	{
-		if ( CFile::Exists("Special://root/intro.mp4") )
+#ifdef HAS_GAMEPAD
+		if (CFile::Exists(g_infoManager.GetLabel(g_infoManager.TranslateString("skin.string(intro_file)"))))
+		{
+			ExecuteXBMCAction(g_infoManager.GetLabel(g_infoManager.TranslateString("skin.string(intro_file)")));
+		}
+		else if ( CFile::Exists("Special://root/intro.mp4") )
 		{
 			ExecuteXBMCAction("Special://root/intro.mp4");
 		}
@@ -1448,41 +1453,28 @@ HRESULT CApplication::Initialize()
 			ExecuteXBMCAction("Special://root/system/intro/intro.mp4");
 		}
 		g_windowManager.ActivateWindow(WINDOW_FULLSCREEN_VIDEO);
-		
 		while (1)
 		{
 			Sleep(10);
-			
 			ReadInput();
 			if (m_DefaultGamepad.bAnalogButtons[XINPUT_GAMEPAD_B])
 			{
 				m_pPlayer->CloseFile();
+				break;
 			}
 			if (!g_application.IsPlayingVideo())
-			{
-				if (g_settings.UsingLoginScreen())
-				{
-					g_windowManager.ActivateWindow(WINDOW_LOGIN_SCREEN);
-					break;
-				}
-				else
-				{
-					g_windowManager.ActivateWindow(g_SkinInfo.GetFirstWindow());
-					break;
-				}
-			}
+				break;
 		}
+#endif
+	}
+
+	if (g_settings.UsingLoginScreen())
+	{
+		g_windowManager.ActivateWindow(WINDOW_LOGIN_SCREEN);
 	}
 	else
 	{
-		if (g_settings.UsingLoginScreen())
-		{
-			g_windowManager.ActivateWindow(WINDOW_LOGIN_SCREEN);
-		}
-		else
-		{
-			g_windowManager.ActivateWindow(g_SkinInfo.GetFirstWindow());
-		}
+		g_windowManager.ActivateWindow(g_SkinInfo.GetFirstWindow());
 	}
 	
 	//g_sysinfo.Refresh();
@@ -2086,7 +2078,6 @@ void CApplication::LoadSkin(const CStdString& strSkin)
 
 	// Load the user windows
 	LoadUserWindows();
-	LoadUserWindowsalt();
 
 	LARGE_INTEGER end, freq;
 	QueryPerformanceCounter(&end);
@@ -2169,193 +2160,103 @@ void CApplication::UnloadSkin()
 bool CApplication::LoadUserWindows()
 {
 	// Start from wherever home.xml is
-
 	std::vector<CStdString> vecSkinPath;
 	g_SkinInfo.GetSkinPaths(vecSkinPath);
-	for (unsigned int i = 0;i < vecSkinPath.size();++i)
+	for (unsigned int i = 0; i < vecSkinPath.size(); ++i)
 	{
-		CStdString strPath = URIUtils::AddFileToFolder(vecSkinPath[i], "custom*.xml");
-		CLog::Log(LOGINFO, "Loading user windows, path %s", vecSkinPath[i].c_str());
-		WIN32_FIND_DATA NextFindFileData;
-		HANDLE hFind = FindFirstFile(_P(strPath).c_str(), &NextFindFileData);
-		while (hFind != INVALID_HANDLE_VALUE)
+		std::vector<CStdString> patterns;
+		patterns.push_back("custom*.xml");
+		patterns.push_back("_script*.xml");
+		for (std::vector<CStdString>::const_iterator it = patterns.begin(); it != patterns.end(); ++it)
 		{
-			WIN32_FIND_DATA FindFileData = NextFindFileData;
-
-			if (!FindNextFile(hFind, &NextFindFileData))
+			const CStdString& Pattern = *it;
+			CStdString strPath = URIUtils::AddFileToFolder(vecSkinPath[i], Pattern);
+			
+			CLog::Log(LOGINFO, "Loading user windows, path %s", vecSkinPath[i].c_str());
+			WIN32_FIND_DATA NextFindFileData;
+			HANDLE hFind = FindFirstFile(_P(strPath).c_str(), &NextFindFileData);
+			while (hFind != INVALID_HANDLE_VALUE)
 			{
-				FindClose(hFind);
-				hFind = INVALID_HANDLE_VALUE;
-			}
+				WIN32_FIND_DATA FindFileData = NextFindFileData;
 
-			// skip "up" directories, which come in all queries
-			if (!strcmp(FindFileData.cFileName, ".") || !strcmp(FindFileData.cFileName, ".."))
-			continue;
+				if (!FindNextFile(hFind, &NextFindFileData))
+				{
+					FindClose(hFind);
+					hFind = INVALID_HANDLE_VALUE;
+				}
 
-			CStdString strFileName = URIUtils::AddFileToFolder(vecSkinPath[i], FindFileData.cFileName);
-			CLog::Log(LOGINFO, "Loading skin file: %s", strFileName.c_str());
-			CStdString strLower(FindFileData.cFileName);
-			strLower.MakeLower();
-			strLower = URIUtils::AddFileToFolder(vecSkinPath[i], strLower);
-			TiXmlDocument xmlDoc;
-			if (!xmlDoc.LoadFile(strFileName) && !xmlDoc.LoadFile(strLower))
-			{
-				CLog::Log(LOGERROR, "unable to load:%s, Line %d\n%s", strFileName.c_str(), xmlDoc.ErrorRow(), xmlDoc.ErrorDesc());
+				// skip "up" directories, which come in all queries
+				if (!strcmp(FindFileData.cFileName, ".") || !strcmp(FindFileData.cFileName, ".."))
 				continue;
-			}
 
-			// Root element should be <window>
-			TiXmlElement* pRootElement = xmlDoc.RootElement();
-			CStdString strValue = pRootElement->Value();
-			if (!strValue.Equals("window"))
-			{
-				CLog::Log(LOGERROR, "file :%s doesnt contain <window>", strFileName.c_str());
-				continue;
-			}
+				CStdString strFileName = URIUtils::AddFileToFolder(vecSkinPath[i], FindFileData.cFileName);
+				CLog::Log(LOGINFO, "Loading skin file: %s", strFileName.c_str());
+				CStdString strLower(FindFileData.cFileName);
+				strLower.MakeLower();
+				strLower = URIUtils::AddFileToFolder(vecSkinPath[i], strLower);
+				TiXmlDocument xmlDoc;
+				if (!xmlDoc.LoadFile(strFileName) && !xmlDoc.LoadFile(strLower))
+				{
+					CLog::Log(LOGERROR, "unable to load:%s, Line %d\n%s", strFileName.c_str(), xmlDoc.ErrorRow(), xmlDoc.ErrorDesc());
+					continue;
+				}
 
-			// Read the <type> element to get the window type to create
-			// If no type is specified, create a CGUIWindow as default
-			CGUIWindow* pWindow = NULL;
-			CStdString strType;
-			if (pRootElement->Attribute("type"))
-			strType = pRootElement->Attribute("type");
-			else
-			{
-				const TiXmlNode *pType = pRootElement->FirstChild("type");
-				if (pType && pType->FirstChild())
-				strType = pType->FirstChild()->Value();
-			}
-			int id = WINDOW_INVALID;
-			if (!pRootElement->Attribute("id", &id))
-			{
-				const TiXmlNode *pType = pRootElement->FirstChild("id");
-				if (pType && pType->FirstChild())
-				id = atol(pType->FirstChild()->Value());
-			}
-			int visibleCondition = 0;
-			CGUIControlFactory::GetConditionalVisibility(pRootElement, visibleCondition);
+				// Root element should be <window>
+				TiXmlElement* pRootElement = xmlDoc.RootElement();
+				CStdString strValue = pRootElement->Value();
+				if (!strValue.Equals("window"))
+				{
+					CLog::Log(LOGERROR, "file :%s doesnt contain <window>", strFileName.c_str());
+					continue;
+				}
 
-			if (strType.Equals("dialog"))
-			pWindow = new CGUIDialog(id + WINDOW_HOME, FindFileData.cFileName);
-			else if (strType.Equals("submenu"))
-			pWindow = new CGUIDialogSubMenu(id + WINDOW_HOME, FindFileData.cFileName);
-			else if (strType.Equals("buttonmenu"))
-			pWindow = new CGUIDialogButtonMenu(id + WINDOW_HOME, FindFileData.cFileName);
-			else
-			pWindow = new CGUIStandardWindow(id + WINDOW_HOME, FindFileData.cFileName);
+				// Read the <type> element to get the window type to create
+				// If no type is specified, create a CGUIWindow as default
+				CGUIWindow* pWindow = NULL;
+				CStdString strType;
+				if (pRootElement->Attribute("type"))
+				strType = pRootElement->Attribute("type");
+				else
+				{
+					const TiXmlNode *pType = pRootElement->FirstChild("type");
+					if (pType && pType->FirstChild())
+					strType = pType->FirstChild()->Value();
+				}
+				int id = WINDOW_INVALID;
+				if (!pRootElement->Attribute("id", &id))
+				{
+					const TiXmlNode *pType = pRootElement->FirstChild("id");
+					if (pType && pType->FirstChild())
+					id = atol(pType->FirstChild()->Value());
+				}
+				int visibleCondition = 0;
+				CGUIControlFactory::GetConditionalVisibility(pRootElement, visibleCondition);
 
-			// Check to make sure the pointer isn't still null
-			if (pWindow == NULL)
-			{
-				CLog::Log(LOGERROR, "Out of memory / Failed to create new object in LoadUserWindows");
-				return false;
+				if (strType.Equals("dialog"))
+				pWindow = new CGUIDialog(id + WINDOW_HOME, FindFileData.cFileName);
+				else if (strType.Equals("submenu"))
+				pWindow = new CGUIDialogSubMenu(id + WINDOW_HOME, FindFileData.cFileName);
+				else if (strType.Equals("buttonmenu"))
+				pWindow = new CGUIDialogButtonMenu(id + WINDOW_HOME, FindFileData.cFileName);
+				else
+				pWindow = new CGUIStandardWindow(id + WINDOW_HOME, FindFileData.cFileName);
+
+				// Check to make sure the pointer isn't still null
+				if (pWindow == NULL)
+				{
+					CLog::Log(LOGERROR, "Out of memory / Failed to create new object in LoadUserWindows");
+					return false;
+				}
+				if (id == WINDOW_INVALID || g_windowManager.GetWindow(WINDOW_HOME + id))
+				{
+					delete pWindow;
+					continue;
+				}
+				pWindow->SetVisibleCondition(visibleCondition, false);
+				g_windowManager.AddCustomWindow(pWindow);
 			}
-			if (id == WINDOW_INVALID || g_windowManager.GetWindow(WINDOW_HOME + id))
-			{
-				delete pWindow;
-				continue;
-			}
-			pWindow->SetVisibleCondition(visibleCondition, false);
-			g_windowManager.AddCustomWindow(pWindow);
+			CloseHandle(hFind);
 		}
-		CloseHandle(hFind);
-	}
-	return true;
-}
-
-bool CApplication::LoadUserWindowsalt()
-{
-	// Start from wherever home.xml is
-
-	std::vector<CStdString> vecSkinPath;
-	g_SkinInfo.GetSkinPaths(vecSkinPath);
-	for (unsigned int i = 0;i < vecSkinPath.size();++i)
-	{
-		CStdString strPath = URIUtils::AddFileToFolder(vecSkinPath[i], "_script*.xml");
-		CLog::Log(LOGINFO, "Loading user windows, path %s", vecSkinPath[i].c_str());
-		WIN32_FIND_DATA NextFindFileData;
-		HANDLE hFind = FindFirstFile(_P(strPath).c_str(), &NextFindFileData);
-		while (hFind != INVALID_HANDLE_VALUE)
-		{
-			WIN32_FIND_DATA FindFileData = NextFindFileData;
-
-			if (!FindNextFile(hFind, &NextFindFileData))
-			{
-				FindClose(hFind);
-				hFind = INVALID_HANDLE_VALUE;
-			}
-
-			// skip "up" directories, which come in all queries
-			if (!strcmp(FindFileData.cFileName, ".") || !strcmp(FindFileData.cFileName, ".."))
-			continue;
-
-			CStdString strFileName = URIUtils::AddFileToFolder(vecSkinPath[i], FindFileData.cFileName);
-			CLog::Log(LOGINFO, "Loading skin file: %s", strFileName.c_str());
-			CStdString strLower(FindFileData.cFileName);
-			strLower.MakeLower();
-			strLower = URIUtils::AddFileToFolder(vecSkinPath[i], strLower);
-			TiXmlDocument xmlDoc;
-			if (!xmlDoc.LoadFile(strFileName) && !xmlDoc.LoadFile(strLower))
-			{
-				CLog::Log(LOGERROR, "unable to load:%s, Line %d\n%s", strFileName.c_str(), xmlDoc.ErrorRow(), xmlDoc.ErrorDesc());
-				continue;
-			}
-
-			// Root element should be <window>
-			TiXmlElement* pRootElement = xmlDoc.RootElement();
-			CStdString strValue = pRootElement->Value();
-			if (!strValue.Equals("window"))
-			{
-				CLog::Log(LOGERROR, "file :%s doesnt contain <window>", strFileName.c_str());
-				continue;
-			}
-
-			// Read the <type> element to get the window type to create
-			// If no type is specified, create a CGUIWindow as default
-			CGUIWindow* pWindow = NULL;
-			CStdString strType;
-			if (pRootElement->Attribute("type"))
-			strType = pRootElement->Attribute("type");
-			else
-			{
-				const TiXmlNode *pType = pRootElement->FirstChild("type");
-				if (pType && pType->FirstChild())
-				strType = pType->FirstChild()->Value();
-			}
-			int id = WINDOW_INVALID;
-			if (!pRootElement->Attribute("id", &id))
-			{
-				const TiXmlNode *pType = pRootElement->FirstChild("id");
-				if (pType && pType->FirstChild())
-				id = atol(pType->FirstChild()->Value());
-			}
-			int visibleCondition = 0;
-			CGUIControlFactory::GetConditionalVisibility(pRootElement, visibleCondition);
-
-			if (strType.Equals("dialog"))
-			pWindow = new CGUIDialog(id + WINDOW_HOME, FindFileData.cFileName);
-			else if (strType.Equals("submenu"))
-			pWindow = new CGUIDialogSubMenu(id + WINDOW_HOME, FindFileData.cFileName);
-			else if (strType.Equals("buttonmenu"))
-			pWindow = new CGUIDialogButtonMenu(id + WINDOW_HOME, FindFileData.cFileName);
-			else
-			pWindow = new CGUIStandardWindow(id + WINDOW_HOME, FindFileData.cFileName);
-
-			// Check to make sure the pointer isn't still null
-			if (pWindow == NULL)
-			{
-				CLog::Log(LOGERROR, "Out of memory / Failed to create new object in LoadUserWindows");
-				return false;
-			}
-			if (id == WINDOW_INVALID || g_windowManager.GetWindow(WINDOW_HOME + id))
-			{
-				delete pWindow;
-				continue;
-			}
-			pWindow->SetVisibleCondition(visibleCondition, false);
-			g_windowManager.AddCustomWindow(pWindow);
-		}
-		CloseHandle(hFind);
 	}
 	return true;
 }
@@ -2536,7 +2437,7 @@ void CApplication::Render()
 			CStdString wszText;
 			MEMORYSTATUS stat;
 			GlobalMemoryStatus(&stat);
-			wszText.Format("FreeMem %d/%d MB  (%d KB)  %s  CPU %d%s - %2.0f%%  MB %d%s  %s  FPS %2.1f",
+			wszText.Format("FreeMem %d/%d MB (%d KB) %s CPU %d%s (%2.0f%%) %s MB %d%s %s FPS %2.1f",
 			stat.dwAvailPhys / (1024 * 1024),
 			stat.dwTotalPhys / (1024 * 1024),
 			stat.dwAvailPhys/1024,
@@ -2544,6 +2445,7 @@ void CApplication::Render()
 			atoi(CFanController::Instance()->GetCPUTemp().ToString()),
 			g_langInfo.GetTempUnitString(),
 			(1.0f - m_idleThread.GetRelativeUsage())*100,
+			seperator,
 			atoi(CFanController::Instance()->GetGPUTemp().ToString()),
 			g_langInfo.GetTempUnitString(),
 			seperator,
@@ -3701,97 +3603,97 @@ void CApplication::Render()
 	{
 		try
 		{
-			g_windowManager.Delete(WINDOW_MUSIC_PLAYLIST);
-			g_windowManager.Delete(WINDOW_MUSIC_PLAYLIST_EDITOR);
-			g_windowManager.Delete(WINDOW_MUSIC_FILES);
-			g_windowManager.Delete(WINDOW_MUSIC_NAV);
-			g_windowManager.Delete(WINDOW_MUSIC_INFO);
-			g_windowManager.Delete(WINDOW_VIDEO_INFO);
-			g_windowManager.Delete(WINDOW_VIDEO_FILES);
-			g_windowManager.Delete(WINDOW_VIDEO_PLAYLIST);
-			g_windowManager.Delete(WINDOW_VIDEO_NAV);
-			g_windowManager.Delete(WINDOW_FILES);
-			g_windowManager.Delete(WINDOW_MUSIC_INFO);
-			g_windowManager.Delete(WINDOW_VIDEO_INFO);
-			g_windowManager.Delete(WINDOW_DIALOG_YES_NO);
-			g_windowManager.Delete(WINDOW_DIALOG_PROGRESS);
-			g_windowManager.Delete(WINDOW_DIALOG_NUMERIC);
-			g_windowManager.Delete(WINDOW_DIALOG_GAMEPAD);
-			g_windowManager.Delete(WINDOW_DIALOG_SUB_MENU);
-			g_windowManager.Delete(WINDOW_DIALOG_BUTTON_MENU);
-			g_windowManager.Delete(WINDOW_DIALOG_CONTEXT_MENU);
-			g_windowManager.Delete(WINDOW_DIALOG_MUSIC_SCAN);
-			g_windowManager.Delete(WINDOW_DIALOG_PLAYER_CONTROLS);
-			g_windowManager.Delete(WINDOW_DIALOG_MUSIC_OSD);
-			g_windowManager.Delete(WINDOW_DIALOG_VIS_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_VIS_PRESET_LIST);
-			g_windowManager.Delete(WINDOW_DIALOG_SELECT);
-			g_windowManager.Delete(WINDOW_DIALOG_OK);
-			g_windowManager.Delete(WINDOW_DIALOG_FILESTACKING);
-			g_windowManager.Delete(WINDOW_DIALOG_KEYBOARD);
-			g_windowManager.Delete(WINDOW_FULLSCREEN_VIDEO);
-			g_windowManager.Delete(WINDOW_DIALOG_TRAINER_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_PROFILE_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_LOCK_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_NETWORK_SETUP);
-			g_windowManager.Delete(WINDOW_DIALOG_MEDIA_SOURCE);
-			g_windowManager.Delete(WINDOW_DIALOG_VIDEO_OSD_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_AUDIO_OSD_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_VIDEO_BOOKMARKS);
-			g_windowManager.Delete(WINDOW_DIALOG_VIDEO_SCAN);
-			g_windowManager.Delete(WINDOW_DIALOG_CONTENT_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_FAVOURITES);
-			g_windowManager.Delete(WINDOW_DIALOG_SONG_INFO);
-			g_windowManager.Delete(WINDOW_DIALOG_SMART_PLAYLIST_EDITOR);
-			g_windowManager.Delete(WINDOW_DIALOG_SMART_PLAYLIST_RULE);
-			g_windowManager.Delete(WINDOW_DIALOG_BUSY);
-			g_windowManager.Delete(WINDOW_DIALOG_PICTURE_INFO);
-			g_windowManager.Delete(WINDOW_DIALOG_PLUGIN_SETTINGS);
-			g_windowManager.Delete(WINDOW_DIALOG_SLIDER);
-			g_windowManager.Delete(WINDOW_DIALOG_TEXT_VIEWER);
+			// g_windowManager.Delete(WINDOW_MUSIC_PLAYLIST);
+			// g_windowManager.Delete(WINDOW_MUSIC_PLAYLIST_EDITOR);
+			// g_windowManager.Delete(WINDOW_MUSIC_FILES);
+			// g_windowManager.Delete(WINDOW_MUSIC_NAV);
+			// g_windowManager.Delete(WINDOW_MUSIC_INFO);
+			// g_windowManager.Delete(WINDOW_VIDEO_INFO);
+			// g_windowManager.Delete(WINDOW_VIDEO_FILES);
+			// g_windowManager.Delete(WINDOW_VIDEO_PLAYLIST);
+			// g_windowManager.Delete(WINDOW_VIDEO_NAV);
+			// g_windowManager.Delete(WINDOW_FILES);
+			// g_windowManager.Delete(WINDOW_MUSIC_INFO);
+			// g_windowManager.Delete(WINDOW_VIDEO_INFO);
+			// g_windowManager.Delete(WINDOW_DIALOG_YES_NO);
+			// g_windowManager.Delete(WINDOW_DIALOG_PROGRESS);
+			// g_windowManager.Delete(WINDOW_DIALOG_NUMERIC);
+			// g_windowManager.Delete(WINDOW_DIALOG_GAMEPAD);
+			// g_windowManager.Delete(WINDOW_DIALOG_SUB_MENU);
+			// g_windowManager.Delete(WINDOW_DIALOG_BUTTON_MENU);
+			// g_windowManager.Delete(WINDOW_DIALOG_CONTEXT_MENU);
+			// g_windowManager.Delete(WINDOW_DIALOG_MUSIC_SCAN);
+			// g_windowManager.Delete(WINDOW_DIALOG_PLAYER_CONTROLS);
+			// g_windowManager.Delete(WINDOW_DIALOG_MUSIC_OSD);
+			// g_windowManager.Delete(WINDOW_DIALOG_VIS_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_VIS_PRESET_LIST);
+			// g_windowManager.Delete(WINDOW_DIALOG_SELECT);
+			// g_windowManager.Delete(WINDOW_DIALOG_OK);
+			// g_windowManager.Delete(WINDOW_DIALOG_FILESTACKING);
+			// g_windowManager.Delete(WINDOW_DIALOG_KEYBOARD);
+			// g_windowManager.Delete(WINDOW_FULLSCREEN_VIDEO);
+			// g_windowManager.Delete(WINDOW_DIALOG_TRAINER_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_PROFILE_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_LOCK_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_NETWORK_SETUP);
+			// g_windowManager.Delete(WINDOW_DIALOG_MEDIA_SOURCE);
+			// g_windowManager.Delete(WINDOW_DIALOG_VIDEO_OSD_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_AUDIO_OSD_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_VIDEO_BOOKMARKS);
+			// g_windowManager.Delete(WINDOW_DIALOG_VIDEO_SCAN);
+			// g_windowManager.Delete(WINDOW_DIALOG_CONTENT_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_FAVOURITES);
+			// g_windowManager.Delete(WINDOW_DIALOG_SONG_INFO);
+			// g_windowManager.Delete(WINDOW_DIALOG_SMART_PLAYLIST_EDITOR);
+			// g_windowManager.Delete(WINDOW_DIALOG_SMART_PLAYLIST_RULE);
+			// g_windowManager.Delete(WINDOW_DIALOG_BUSY);
+			// g_windowManager.Delete(WINDOW_DIALOG_PICTURE_INFO);
+			// g_windowManager.Delete(WINDOW_DIALOG_PLUGIN_SETTINGS);
+			// g_windowManager.Delete(WINDOW_DIALOG_SLIDER);
+			// g_windowManager.Delete(WINDOW_DIALOG_TEXT_VIEWER);
 
-			g_windowManager.Delete(WINDOW_STARTUP_ANIM);
-			g_windowManager.Delete(WINDOW_LOGIN_SCREEN);
-			g_windowManager.Delete(WINDOW_VISUALISATION);
-			g_windowManager.Delete(WINDOW_SETTINGS_MENU);
-			g_windowManager.Delete(WINDOW_SETTINGS_PROFILES);
-			g_windowManager.Delete(WINDOW_SETTINGS_MYPICTURES);  // all the settings categories
-			g_windowManager.Delete(WINDOW_SCREEN_CALIBRATION);
-			g_windowManager.Delete(WINDOW_SYSTEM_INFORMATION);
-			g_windowManager.Delete(WINDOW_SCREENSAVER);
-			g_windowManager.Delete(WINDOW_OSD);
-			g_windowManager.Delete(WINDOW_MUSIC_OVERLAY);
-			g_windowManager.Delete(WINDOW_VIDEO_OVERLAY);
-			g_windowManager.Delete(WINDOW_SCRIPTS_INFO);
-			g_windowManager.Delete(WINDOW_SLIDESHOW);
+			// g_windowManager.Delete(WINDOW_STARTUP_ANIM);
+			// g_windowManager.Delete(WINDOW_LOGIN_SCREEN);
+			// g_windowManager.Delete(WINDOW_VISUALISATION);
+			// g_windowManager.Delete(WINDOW_SETTINGS_MENU);
+			// g_windowManager.Delete(WINDOW_SETTINGS_PROFILES);
+			// g_windowManager.Delete(WINDOW_SETTINGS_MYPICTURES);  // all the settings categories
+			// g_windowManager.Delete(WINDOW_SCREEN_CALIBRATION);
+			// g_windowManager.Delete(WINDOW_SYSTEM_INFORMATION);
+			// g_windowManager.Delete(WINDOW_SCREENSAVER);
+			// g_windowManager.Delete(WINDOW_OSD);
+			// g_windowManager.Delete(WINDOW_MUSIC_OVERLAY);
+			// g_windowManager.Delete(WINDOW_VIDEO_OVERLAY);
+			// g_windowManager.Delete(WINDOW_SCRIPTS_INFO);
+			// g_windowManager.Delete(WINDOW_SLIDESHOW);
 
-			g_windowManager.Delete(WINDOW_HOME);
-			g_windowManager.Delete(WINDOW_PROGRAMS);
-			g_windowManager.Delete(WINDOW_PICTURES);
-			g_windowManager.Delete(WINDOW_SCRIPTS);
-			g_windowManager.Delete(WINDOW_GAMESAVES);
-			g_windowManager.Delete(WINDOW_WEATHER);
+			// g_windowManager.Delete(WINDOW_HOME);
+			// g_windowManager.Delete(WINDOW_PROGRAMS);
+			// g_windowManager.Delete(WINDOW_PICTURES);
+			// g_windowManager.Delete(WINDOW_SCRIPTS);
+			// g_windowManager.Delete(WINDOW_GAMESAVES);
+			// g_windowManager.Delete(WINDOW_WEATHER);
 
-			g_windowManager.Delete(WINDOW_SETTINGS_MYPICTURES);
-			g_windowManager.Remove(WINDOW_SETTINGS_MYPROGRAMS);
-			g_windowManager.Remove(WINDOW_SETTINGS_MYWEATHER);
-			g_windowManager.Remove(WINDOW_SETTINGS_MYMUSIC);
-			g_windowManager.Remove(WINDOW_SETTINGS_SYSTEM);
-			g_windowManager.Remove(WINDOW_SETTINGS_MYVIDEOS);
-			g_windowManager.Remove(WINDOW_SETTINGS_NETWORK);
-			g_windowManager.Remove(WINDOW_SETTINGS_APPEARANCE);
-			g_windowManager.Remove(WINDOW_DIALOG_KAI_TOAST);
+			// g_windowManager.Delete(WINDOW_SETTINGS_MYPICTURES);
+			// g_windowManager.Remove(WINDOW_SETTINGS_MYPROGRAMS);
+			// g_windowManager.Remove(WINDOW_SETTINGS_MYWEATHER);
+			// g_windowManager.Remove(WINDOW_SETTINGS_MYMUSIC);
+			// g_windowManager.Remove(WINDOW_SETTINGS_SYSTEM);
+			// g_windowManager.Remove(WINDOW_SETTINGS_MYVIDEOS);
+			// g_windowManager.Remove(WINDOW_SETTINGS_NETWORK);
+			// g_windowManager.Remove(WINDOW_SETTINGS_APPEARANCE);
+			// g_windowManager.Remove(WINDOW_DIALOG_KAI_TOAST);
 
-			g_windowManager.Remove(WINDOW_DIALOG_SEEK_BAR);
-			g_windowManager.Remove(WINDOW_DIALOG_VOLUME_BAR);
+			// g_windowManager.Remove(WINDOW_DIALOG_SEEK_BAR);
+			// g_windowManager.Remove(WINDOW_DIALOG_VOLUME_BAR);
 
-			CLog::Log(LOGNOTICE, "unload sections");
-			CSectionLoader::UnloadAll();
+			// CLog::Log(LOGNOTICE, "unload sections");
+			// CSectionLoader::UnloadAll();
 			// reset our d3d params before we destroy
 			g_graphicsContext.SetD3DDevice(NULL);
 			g_graphicsContext.SetD3DParameters(NULL);
 
-#ifdef _DEBUG
+/* #ifdef _DEBUG
 			//  Shutdown as much as possible of the
 			//  application, to reduce the leaks dumped
 			//  to the vc output window before calling
@@ -3821,7 +3723,7 @@ void CApplication::Render()
 #ifdef _CRTDBG_MAP_ALLOC
 			_CrtDumpMemoryLeaks();
 			while(1); // execution ends
-#endif
+#endif */
 			return S_OK;
 		}
 		catch (...)

@@ -431,6 +431,9 @@ namespace INFO
 #define SKIN_THEME                  800
 #define SKIN_COLOUR_THEME           801
 
+#define SYSTEM_FREE_MEMORY_NO_MB    850
+#define SYSTEM_USED_MEMORY_NO_MB    851
+#define SYSTEM_TOTAL_MEMORY_NO_MB   852
 #define SLIDE_INFO_START            900
 #define SLIDE_INFO_END              980
 
