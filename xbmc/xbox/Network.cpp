@@ -36,7 +36,7 @@
 #include "utils/log.h"
 
 // Time to wait before we give up on network init
-#define WAIT_TIME 5000
+#define WAIT_TIME 10000
 
 #ifdef _XBOX
 static char* inet_ntoa (struct in_addr in)
@@ -606,29 +606,32 @@ void CNetwork::NetworkMessage(EMESSAGE message, DWORD dwParam)
     {
       CLog::Log(LOGDEBUG, "%s - Starting network services",__FUNCTION__);
       g_application.StartTimeServer();
-      // g_application.StartWebServer();
+      g_application.StartWebServer();
       g_application.StartFtpServer();
-      // g_application.StartUPnP();
-      // g_application.StartEventServer();
-      // CLastfmScrobbler::GetInstance()->Init();
-      // CLibrefmScrobbler::GetInstance()->Init();
-      // g_rssManager.Start();
-      // g_weatherManager.Refresh();
+									 
+      g_application.StartUPnP();
+      g_application.StartEventServer();
+      CLastfmScrobbler::GetInstance()->Init();
+      CLibrefmScrobbler::GetInstance()->Init();
+      g_rssManager.Start();
+      g_weatherManager.Refresh();
     }
     break;
     case SERVICES_DOWN:
     {
       CLog::Log(LOGDEBUG, "%s - Stopping network services",__FUNCTION__);
+									
       g_application.StopTimeServer();
-      // g_application.StopWebServer();
+      g_application.StopWebServer();
       g_application.StopFtpServer();
-      // g_application.StopUPnP();
-      // g_application.StopEventServer();
-      // CLastfmScrobbler::GetInstance()->Term();
-      // CLibrefmScrobbler::GetInstance()->Term();
+      g_application.StopUPnP();
+      g_application.StopEventServer();
+      CLastfmScrobbler::GetInstance()->Term();
+      CLibrefmScrobbler::GetInstance()->Term();
       // smb.Deinit(); if any file is open over samba this will break.
 
       g_rssManager.Stop();
+
     }
     break;
   }
